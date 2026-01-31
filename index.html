@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>GeoQuiz AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Load React and ReactDOM (UMD) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Load Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+      body { font-family: 'Inter', 'Noto Sans JP', sans-serif; overscroll-behavior: none; }
+      .glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.3); }
+      .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(156, 163, 175, 0.5); border-radius: 20px; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+  <link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 h-screen w-screen overflow-hidden text-slate-800">
+    <div id="root" class="h-full w-full"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef, useMemo } = React;
+
+      // --- 1. CONSTANTS & TYPES ---
+      const GameType = {
+        CITY_TO_PREFECTURE: 'CITY_TO_PREFECTURE',
+        FLAG_TO_COUNTRY: 'FLAG_TO_COUNTRY',
+        COUNTRY_TO_CAPITAL: 'COUNTRY_TO_CAPITAL',
+      };
+
+      const InputMode = {
+        CHOICE: 'CHOICE',
+        TEXT: 'TEXT',
+        FLASH: 'FLASH', // New Mode
+      };
+
+      const SortOrder = {
+        RANDOM: 'RANDOM',
+        ACCURACY_ASC: 'ACCURACY_ASC', // Low accuracy first
+        ALPHABETICAL: 'ALPHABETICAL',
+      };
+
+      const GameState = {
+        MENU: 'MENU',
+        REGION_SELECT: 'REGION_SELECT',
+        LOADING: 'LOADING',
+        PLAYING: 'PLAYING',
+        RESULT: 'RESULT',
+      };
+
+      // --- 2. DATASETS ---
+      const RAW_JAPAN_DATA = `北海道:札幌市,函館市,小樽市,旭川市,室蘭市,釧路市,帯広市,北見市,夕張市,岩見沢市,網走市,留萌市,苫小牧市,稚内市,美唄市,芦別市,江別市,赤平市,紋別市,士別市,名寄市,三笠市,根室市,千歳市,滝川市,砂川市,歌志内市,深川市,富良野市,登別市,恵庭市,伊達市,北広島市,石狩市,北斗市,当別町,新篠津村,松前町,福島町,知内町,木古内町,七飯町,鹿部町,森町,八雲町,長万部町,江差町,上ノ国町,厚沢部町,乙部町,奥尻町,今金町,せたな町,島牧村,寿都町,黒松内町,蘭越町,ニセコ町,真狩村,留寿都村,喜茂別町,京極町,倶知安町,共和町,岩内町,泊村,神恵内村,積丹町,古平町,仁木町,余市町,赤井川村,南幌町,奈井江町,上砂川町,由仁町,長沼町,栗山町,月形町,浦臼町,新十津川町,妹背牛町,秩父別町,雨竜町,北竜町,沼田町,鷹栖町,東神楽町,当麻町,比布町,愛別町,上川町,東川町,美瑛町,上富良野町,中富良野町,南富良野町,占冠村,和寒町,剣淵町,下川町,美深町,音威子府村,中川町,幌加内町,増毛町,小平町,苫前町,羽幌町,初山別村,遠別町,天塩町,猿払村,浜頓別町,中頓別町,枝幸町,豊富町,礼文町,利尻町,利尻富士町,幌延町,美幌町,津別町,斜里町,清里町,小清水町,訓子府町,置戸町,佐呂間町,遠軽町,湧別町,滝上町,興部町,西興部村,雄武町,大空町,豊浦町,壮瞥町,白老町,厚真町,洞爺湖町,安平町,むかわ町,日高町,平取町,新冠町,浦河町,様似町,えりも町,新ひだか町,音更町,士幌町,上士幌町,鹿追町,新得町,清水町,芽室町,中札内村,更別村,大樹町,広尾町,幕別町,池田町,豊頃町,本別町,足寄町,陸別町,浦幌町,釧路町,厚岸町,浜中町,標茶町,弟子屈町,鶴居村,白糠町,別海町,中標津町,標津町,羅臼町|青森県:青森市,弘前市,八戸市,黒石市,五所川原市,十和田市,三沢市,むつ市,つがる市,平川市,平内町,今別町,蓬田村,外ヶ浜町,鰺ヶ沢町,深浦町,西目屋村,藤崎町,大鰐町,田舎館村,板柳町,鶴田町,中泊町,野辺地町,七戸町,六戸町,横浜町,東北町,六ヶ所村,おいらせ町,大間町,東通村,風間浦村,佐井村,三戸町,五戸町,田子町,南部町,階上町,新郷村|岩手県:盛岡市,宮古市,大船渡市,花巻市,北上市,久慈市,遠野市,一関市,陸前高田市,釜石市,二戸市,八幡平市,奥州市,滝沢市,雫石町,葛巻町,岩手町,紫波町,矢巾町,西和賀町,金ケ崎町,平泉町,住田町,大槌町,山田町,岩泉町,田野畑村,普代村,軽米町,野田村,九戸村,洋野町,一戸町|宮城県:仙台市,石巻市,塩竈市,気仙沼市,白石市,名取市,角田市,多賀城市,岩沼市,登米市,栗原市,東松島市,大崎市,富谷市,蔵王町,七ヶ宿町,大河原町,村田町,柴田町,川崎町,丸森町,亘理町,山元町,松島町,七ヶ浜町,利府町,大和町,大郷町,大衡村,色麻町,加美町,涌谷町,美里町,女川町,南三陸町|秋田県:秋田市,能代市,横手市,大館市,男鹿市,湯沢市,鹿角市,由利本荘市,潟上市,大仙市,北秋田市,にかほ市,仙北市,小坂町,上小阿仁村,藤里町,三種町,八峰町,五城目町,八郎潟町,井川町,大潟村,美郷町,羽後町,東成瀬村|山形県:山形市,米沢市,鶴岡市,酒田市,新庄市,寒河江市,上山市,村山市,長井市,天童市,東根市,尾花沢市,南陽市,山辺町,中山町,河北町,西川町,朝日町,大江町,大石田町,金山町,最上町,舟形町,真室川町,大蔵村,鮭川村,戸沢村,高畠町,川西町,小国町,白鷹町,飯豊町,三川町,庄内町,遊佐町|福島県:福島市,会津若松市,郡山市,いわき市,白河市,須賀川市,喜多方市,相馬市,二本松市,田村市,南相馬市,伊達市,本宮市,桑折町,国見町,川俣町,大玉村,鏡石町,天栄村,下郷町,檜枝岐村,只見町,南会津町,北塩原村,西会津町,磐梯町,猪苗代町,会津坂下町,湯川村,柳津町,三島町,金山町,昭和村,会津美里町,西郷村,泉崎村,中島村,矢吹町,棚倉町,矢祭町,塙町,鮫川村,石川町,玉川村,平田村,浅川町,古殿町,三春町,小野町,広野町,楢葉町,富岡町,川内村,大熊町,双葉町,浪江町,葛尾村,新地町,飯舘村|茨城県:水戸市,日立市,土浦市,古河市,石岡市,結城市,龍ケ崎市,下妻市,常総市,常陸太田市,高萩市,北茨城市,笠間市,取手市,牛久市,つくば市,ひたちなか市,鹿嶋市,潮来市,守谷市,常陸大宮市,那珂市,筑西市,坂東市,稲敷市,かすみがうら市,桜川市,神栖市,行方市,鉾田市,つくばみらい市,小美玉市,茨城町,大洗町,城里町,東海村,大子町,美浦村,阿見町,河内町,八千代町,五霞町,境町,利根町|栃木県:宇都宮市,足利市,栃木市,佐野市,鹿沼市,日光市,小山市,真岡市,大田原市,矢板市,那須塩原市,さくら市,那須烏山市,下野市,上三川町,益子町,茂木町,市貝町,芳賀町,壬生町,野木町,塩谷町,高根沢町,那須町,那珂川町|群馬県:前橋市,高崎市,桐生市,伊勢崎市,太田市,沼田市,館林市,渋川市,藤岡市,富岡市,安中市,みどり市,榛東村,吉岡町,上野村,神流町,下仁田町,南牧村,甘楽町,中之条町,長野原町,嬬恋村,草津町,高山村,東吾妻町,片品村,川場村,昭和村,みなかみ町,玉村町,板倉町,明和町,千代田町,大泉町,邑楽町|埼玉県:さいたま市,川越市,熊谷市,川口市,行田市,秩父市,所沢市,飯能市,加須市,本庄市,東松山市,春日部市,狭山市,羽生市,鴻巣市,深谷市,上尾市,草加市,越谷市,蕨市,戸田市,入間市,朝霞市,志木市,和光市,新座市,桶川市,久喜市,北本市,八潮市,富士見市,三郷市,蓮田市,坂戸市,幸手市,鶴ヶ島市,日高市,吉川市,ふじみ野市,白岡市,伊奈町,三芳町,毛呂山町,越生町,滑川町,嵐山町,小川町,川島町,吉見町,鳩山町,ときがわ町,横瀬町,皆野町,長瀞町,小鹿野町,東秩父村,美里町,神川町,上里町,寄居町,宮代町,杉戸町,松伏町|千葉県:千葉市,銚子市,市川市,船橋市,館山市,木更津市,松戸市,野田市,茂原市,成田市,佐倉市,東金市,旭市,習志野市,柏市,勝浦市,市原市,流山市,八千代市,我孫子市,鴨川市,鎌ケ谷市,君津市,富津市,浦安市,四街道市,袖ケ浦市,八街市,印西市,白井市,富里市,南房総市,匝瑳市,香取市,山武市,いすみ市,大網白里市,酒々井町,栄町,神崎町,多古町,東庄町,九十九里町,芝山町,横芝光町,一宮町,睦沢町,長生村,白子町,長柄町,長南町,大多喜町,御宿町,鋸南町|東京都:千代田区,中央区,港区,新宿区,文京区,台東区,墨田区,江東区,品川区,目黒区,大田区,世田谷区,渋谷区,中野区,杉並区,豊島区,北区,荒川区,板橋区,練馬区,足立区,葛飾区,江戸川区,八王子市,立川市,武蔵野市,三鷹市,青梅市,府中市,昭島市,調布市,町田市,小金井市,小平市,日野市,東村山市,国分寺市,国立市,福生市,狛江市,東大和市,清瀬市,東久留米市,武蔵村山市,多摩市,稲城市,羽村市,あきる野市,西東京市,瑞穂町,日の出町,檜原村,奥多摩町,大島町,利島村,新島村,神津島村,三宅村,御蔵島村,八丈町,青ヶ島村,小笠原村|神奈川県:横浜市,川崎市,相模原市,横須賀市,平塚市,鎌倉市,藤沢市,小田原市,茅ヶ崎市,逗子市,三浦市,秦野市,厚木市,大和市,伊勢原市,海老名市,座間市,南足柄市,綾瀬市,葉山町,寒川町,大磯町,二宮町,中井町,大井町,松田町,山北町,開成町,箱根町,真鶴町,湯河原町,愛川町,清川村|新潟県:新潟市,長岡市,三条市,柏崎市,新発田市,小千谷市,加茂市,十日町市,見附市,村上市,燕市,糸魚川市,妙高市,五泉市,上越市,阿賀野市,佐渡市,魚沼市,南魚沼市,胎内市,聖籠町,弥彦村,田上町,阿賀町,出雲崎町,湯沢町,津南町,刈羽村,関川村,粟島浦村|富山県:富山市,高岡市,魚津市,氷見市,滑川市,黒部市,砺波市,小矢部市,南砺市,射水市,舟橋村,上市町,立山町,入善町,朝日町|石川県:金沢市,七尾市,小松市,輪島市,珠洲市,加賀市,羽咋市,かほく市,白山市,能美市,野々市市,川北町,津幡町,内灘町,志賀町,宝達志水町,中能登町,穴水町,能登町|福井県:福井市,敦賀市,小浜市,大野市,勝山市,鯖江市,あわら市,越前市,坂井市,永平寺町,池田町,南越前町,越前町,美浜町,高浜町,おおい町,若狭町|山梨県:甲府市,富士吉田市,都留市,山梨市,大月市,韮崎市,南アルプス市,北杜市,甲斐市,笛吹市,上野原市,甲州市,中央市,市川三郷町,早川町,身延町,南部町,富士川町,昭和町,道志村,西桂町,忍野村,山中湖村,鳴沢村,富士河口湖町,小菅村,丹波山村|長野県:長野市,松本市,上田市,岡谷市,飯田市,諏訪市,須坂市,小諸市,伊那市,駒ヶ根市,中野市,大町市,飯山市,茅野市,塩尻市,佐久市,千曲市,東御市,安曇野市,小海町,川上村,南牧村,南相木村,北相木村,佐久穂町,軽井沢町,御代田町,立科町,青木村,長和町,下諏訪町,富士見町,原村,辰野町,箕輪町,南箕輪村,中川村,宮田村,松川町,高森町,阿南町,阿智村,平谷村,根羽村,下條村,売木村,天龍村,泰阜村,喬木村,豊丘村,大鹿村,上松町,南木曽町,木祖村,王滝村,大桑村,木曽町,麻績村,生坂村,山形村,朝日村,筑北村,池田町,松川村,白馬村,小谷村,坂城町,小布施町,高山村,山ノ内町,木島平村,野沢温泉村,信濃町,飯綱町,小川村,栄村|岐阜県:岐阜市,大垣市,高山市,多治見市,関市,中津川市,美濃市,瑞浪市,羽島市,恵那市,美濃加茂市,土岐市,各務原市,可児市,山県市,瑞穂市,飛騨市,本巣市,郡上市,下呂市,海津市,岐南町,笠松町,養老町,垂井町,関ケ原町,神戸町,輪之内町,安八町,揖斐川町,大野町,池田町,北方町,坂祝町,富加町,川辺町,七宗町,八百津町,白川町,東白川村,御嵩町,白川村|静岡県:静岡市,浜松市,沼津市,熱海市,三島市,富士宮市,伊東市,島田市,富士市,磐田市,焼津市,掛川市,藤枝市,御殿場市,袋井市,下田市,裾野市,湖西市,伊豆市,御前崎市,菊川市,伊豆の国市,牧之原市,東伊豆町,河津町,南伊豆町,松崎町,西伊豆町,函南町,清水町,長泉町,小山町,吉田町,川根本町,森町|愛知県:名古屋市,豊橋市,岡崎市,一宮市,瀬戸市,半田市,春日井市,豊川市,津島市,碧南市,刈谷市,豊田市,安城市,西尾市,蒲郡市,犬山市,常滑市,江南市,小牧市,稲沢市,新城市,東海市,大府市,知多市,知立市,尾張旭市,高浜市,岩倉市,豊明市,日進市,田原市,愛西市,清須市,北名古屋市,弥富市,みよし市,あま市,長久手市,東郷町,豊山町,大口町,扶桑町,大治町,蟹江町,飛島村,阿久比町,東浦町,南知多町,美浜町,武豊町,幸田町,設楽町,東栄町,豊根村|三重県:津市,四日市市,伊勢市,松阪市,桑名市,鈴鹿市,名張市,尾鷲市,亀山市,鳥羽市,熊野市,いなべ市,志摩市,伊賀市,木曽岬町,東員町,菰野町,朝日町,川越町,多気町,明和町,大台町,玉城町,度会町,大紀町,南伊勢町,紀北町,御浜町,紀宝町|滋賀県:大津市,彦根市,長浜市,近江八幡市,草津市,守山市,栗東市,甲賀市,野洲市,湖南市,高島市,東近江市,米原市,日野町,竜王町,愛荘町,豊郷町,甲良町,多賀町|京都府:京都市,福知山市,舞鶴市,綾部市,宇治市,宮津市,亀岡市,城陽市,向日市,長岡京市,八幡市,京田辺市,京丹後市,南丹市,木津川市,大山崎町,久御山町,井手町,宇治田原町,笠置町,和束町,精華町,南山城村,京丹波町,伊根町,与謝野町|大阪府:大阪市,堺市,岸和田市,豊中市,池田市,吹田市,泉大津市,高槻市,貝塚市,守口市,枚方市,茨木市,八尾市,泉佐野市,富田林市,寝屋川市,河内長野市,松原市,大東市,和泉市,箕面市,柏原市,羽曳野市,門真市,摂津市,高石市,藤井寺市,東大阪市,泉南市,四條畷市,交野市,大阪狭山市,阪南市,島本町,豊能町,能勢町,忠岡町,熊取町,田尻町,岬町,太子町,河南町,千早赤阪村|兵庫県:神戸市,姫路市,尼崎市,明石市,西宮市,洲本市,芦屋市,伊丹市,相生市,豊岡市,加古川市,赤穂市,西脇市,宝塚市,三木市,高砂市,川西市,小野市,三田市,加西市,丹波篠山市,養父市,丹波市,南あわじ市,朝来市,淡路市,宍粟市,加東市,たつの市,猪名川町,多可町,稲美町,播磨町,市川町,福崎町,神河町,太子町,上郡町,佐用町,香美町,新温泉町|奈良県:奈良市,大和高田市,大和郡山市,天理市,橿原市,桜井市,五條市,御所市,生駒市,香芝市,葛城市,宇陀市,山添村,平群町,三郷町,斑鳩町,安堵町,川西町,三宅町,田原本町,曽爾村,御杖村,高取町,明日香村,上牧町,王寺町,広陵町,河合町,吉野町,大淀町,下市町,黒滝村,天川村,野迫川村,十津川村,下北山村,上北山村,川上村,東吉野村|和歌山県:和歌山市,海南市,橋本市,有田市,御坊市,田辺市,新宮市,紀の川市,岩出市,紀美野町,かつらぎ町,九度山町,高野町,湯浅町,広川町,有田川町,美浜町,日高町,由良町,印南町,みなべ町,日高川町,白浜町,上富田町,すさみ町,那智勝浦町,太地町,古座川町,北山村,串本町|鳥取県:鳥取市,米子市,倉吉市,境港市,岩美町,若桜町,智頭町,八頭町,三朝町,湯梨浜町,琴浦町,北栄町,日吉津村,大山町,南部町,伯耆町,日南町,日野町,江府町|島根県:松江市,浜田市,出雲市,益田市,大田市,安来市,江津市,雲南市,奥出雲町,飯南町,川本町,美郷町,邑南町,津和野町,吉賀町,海士町,西ノ島町,知夫村,隠岐の島町|岡山県:岡山市,倉敷市,津山市,玉野市,笠岡市,井原市,総社市,高梁市,新見市,備前市,瀬戸内市,赤磐市,真庭市,美作市,浅口市,和気町,早島町,里庄町,矢掛町,新庄村,鏡野町,勝央町,奈義町,西粟倉村,久米南町,美咲町,吉備中央町|広島県:広島市,呉市,竹原市,三原市,尾道市,福山市,府中市,三次市,庄原市,大竹市,東広島市,廿日市市,安芸高田市,江田島市,府中町,海田町,熊野町,坂町,安芸太田町,北広島町,大崎上島町,世羅町,神石高原町|山口県:山口市,下関市,宇部市,萩市,防府市,下松市,岩国市,光市,長門市,柳井市,美祢市,周南市,山陽小野田市,周防大島町,和木町,上関町,田布施町,平生町,阿武町|徳島県:徳島市,鳴門市,小松島市,阿南市,吉野川市,阿波市,美馬市,三好市,勝浦町,上勝町,佐那河内村,石井町,神山町,那賀町,牟岐町,美波町,海陽町,松茂町,北島町,藍住町,板野町,上板町,つるぎ町,東みよし町|香川県:高松市,丸亀市,坂出市,善通寺市,観音寺市,さぬき市,東かがわ市,三豊市,土庄町,小豆島町,三木町,直島町,宇多津町,綾川町,琴平町,多度津町,まんのう町|愛媛県:松山市,今治市,宇和島市,八幡浜市,新居浜市,西条市,大洲市,伊予市,四国中央市,西予市,東温市,上島町,久万高原町,松前町,砥部町,内子町,伊方町,松野町,鬼北町,愛南町|高知県:高知市,室戸市,安芸市,南国市,土佐市,須崎市,宿毛市,土佐清水市,四万十市,香南市,香美市,東洋町,奈半利町,田野町,安田町,北川村,馬路村,芸西村,本山町,大豊町,土佐町,大川村,いの町,仁淀川町,中土佐町,佐川町,越知町,檮原町,津野町,日高村,黒潮町,大月町,三原村|福岡県:北九州市,福岡市,大牟田市,久留米市,直方市,飯塚市,田川市,柳川市,八女市,筑後市,大川市,行橋市,豊前市,中間市,小郡市,筑紫野市,春日市,大野城市,宗像市,太宰府市,古賀市,福津市,うきは市,宮若市,嘉麻市,朝倉市,みやま市,糸島市,那珂川市,宇美町,篠栗町,志免町,須恵町,新宮町,久山町,粕屋町,芦屋町,水巻町,岡垣町,遠賀町,小竹町,鞍手町,桂川町,筑前町,東峰村,大刀洗町,大木町,広川町,香春町,添田町,糸田町,川崎町,大任町,赤村,福智町,苅田町,みやこ町,吉富町,上毛町,築上町|佐賀県:佐賀市,唐津市,鳥栖市,多久市,伊万里市,武雄市,鹿島市,小城市,嬉野市,神埼市,吉野ヶ里町,基山町,上峰町,みやき町,玄海町,有田町,大町町,江北町,白石町,太良町|長崎県:長崎市,佐世保市,島原市,諫早市,大村市,平戸市,松浦市,対馬市,壱岐市,五島市,西海市,雲仙市,南島原市,長与町,時津町,東彼杵町,川棚町,波佐見町,小値賀町,佐々町,新上五島町|熊本県:熊本市,八代市,人吉市,荒尾市,水俣市,玉名市,山鹿市,菊池市,宇土市,上天草市,宇城市,阿蘇市,天草市,合志市,美里町,玉東町,南関町,長洲町,和水町,大津町,菊陽町,南小国町,小国町,産山村,高森町,西原村,南阿蘇村,御船町,嘉島町,益城町,甲佐町,山都町,氷川町,芦北町,津奈木町,錦町,多良木町,湯前町,水上村,相良村,五木村,山江村,球磨村,あさぎり町,苓北町|大分県:大分市,別府市,中津市,日田市,佐伯市,臼杵市,津久見市,竹田市,豊后大野市,杵築市,宇佐市,豊后大野市,由布市,国東市,姫島村,日出町,九重町,玖珠町|宮崎県:宮崎市,都城市,延岡市,日南市,小林市,日向市,串間市,西都市,えびの市,三股町,高原町,国富町,綾町,高鍋町,新富町,西米良村,木城町,川南町,都農町,門川町,諸塚村,椎葉村,美郷町,高千穂町,日之影町,五ヶ瀬町|鹿児島県:鹿児島市,鹿屋市,枕崎市,阿久根市,出水市,指宿市,西之表市,垂水市,薩摩川内市,日置市,曽於市,霧島市,いちき串木野市,南さつま市,志布志市,奄美市,南九州市,伊佐市,姶良市,三島村,十島村,さつま町,長島町,湧水町,大崎町,東串良町,錦江町,南大隅町,肝付町,中種子町,南種子町,屋久島町,大和村,宇検村,瀬戸内町,龍郷町,喜界町,徳之島町,天城町,伊仙町,和泊町,知名町,与論町|沖縄県:那覇市,宜野湾市,石垣市,浦添市,名護市,糸満市,沖縄市,豊見城市,うるま市,宮古島市,南城市,国頭村,大宜味村,東村,今帰仁村,本部町,恩納村,宜野座村,金武町,伊江村,読谷村,嘉手納町,北谷町,北中城村,中城村,西原町,与那原町,南風原町,渡嘉敷村,座間味村,粟国村,渡名喜村,南大東村,北大東村,伊平屋村,伊ぜな村,久米島町,八重瀬町,多良間村,竹富町,与那国町`;
+
+      const COUNTRY_DATA = [
+        { code: "af", name: "アフガニスタン", capital: "カブール", region: "ASIA" }, { code: "al", name: "アルバニア", capital: "ティラナ", region: "EUROPE" }, { code: "dz", name: "アルジェリア", capital: "アルジェ", region: "AFRICA" }, { code: "ad", name: "アンドラ", capital: "アンドララベリャ", region: "EUROPE" }, { code: "ao", name: "アンゴラ", capital: "ルアンダ", region: "AFRICA" }, { code: "ag", name: "アンティグア・バーブーダ", capital: "セントジョンズ", region: "NORTH_AMERICA" }, { code: "ar", name: "アルゼンチン", capital: "ブエノスアイレス", region: "SOUTH_AMERICA" }, { code: "am", name: "アルメニア", capital: "エレバン", region: "ASIA" }, { code: "au", name: "オーストラリア", capital: "キャンベラ", region: "OCEANIA" }, { code: "at", name: "オーストリア", capital: "ウィーン", region: "EUROPE" }, { code: "az", name: "アゼルバイジャン", capital: "バクー", region: "ASIA" }, { code: "bs", name: "バハマ", capital: "ナッソー", region: "NORTH_AMERICA" }, { code: "bh", name: "バーレーン", capital: "マナーマ", region: "ASIA" }, { code: "bd", name: "バングラデシュ", capital: "ダッカ", region: "ASIA" }, { code: "bb", name: "バルバドス", capital: "ブリッジタウン", region: "NORTH_AMERICA" }, { code: "by", name: "ベラルーシ", capital: "ミンスク", region: "EUROPE" }, { code: "be", name: "ベルギー", capital: "ブリュッセル", region: "EUROPE" }, { code: "bz", name: "ベリーズ", capital: "ベルモパン", region: "NORTH_AMERICA" }, { code: "bj", name: "ベナン", capital: "ポルトノボ", region: "AFRICA" }, { code: "bt", name: "ブータン", capital: "ティンプー", region: "ASIA" }, { code: "bo", name: "ボリビア", capital: "ラパス", region: "SOUTH_AMERICA" }, { code: "ba", name: "ボスニア・ヘルツェゴビナ", capital: "サラエボ", region: "EUROPE" }, { code: "bw", name: "ボツワナ", capital: "ハボローネ", region: "AFRICA" }, { code: "br", name: "ブラジル", capital: "ブラジリア", region: "SOUTH_AMERICA" }, { code: "bn", name: "ブルネイ", capital: "バンダルスリブガワン", region: "ASIA" }, { code: "bg", name: "ブルガリア", capital: "ソフィア", region: "EUROPE" }, { code: "bf", name: "ブルキナファソ", capital: "ワガドゥグー", region: "AFRICA" }, { code: "bi", name: "ブルンジ", capital: "ギテガ", region: "AFRICA" }, { code: "cv", name: "カーボベルデ", capital: "プライア", region: "AFRICA" }, { code: "kh", name: "カンボジア", capital: "プノンペン", region: "ASIA" }, { code: "cm", name: "カメルーン", capital: "ヤウンデ", region: "AFRICA" }, { code: "ca", name: "カナダ", capital: "オタワ", region: "NORTH_AMERICA" }, { code: "cf", name: "中央アフリカ", capital: "バンギ", region: "AFRICA" }, { code: "td", name: "チャド", capital: "ンジャメナ", region: "AFRICA" }, { code: "cl", name: "チリ", capital: "サンティアゴ", region: "SOUTH_AMERICA" }, { code: "cn", name: "中国", capital: "北京", region: "ASIA" }, { code: "co", name: "コロンビア", capital: "ボゴタ", region: "SOUTH_AMERICA" }, { code: "km", name: "コモロ", capital: "モロニ", region: "AFRICA" }, { code: "cg", name: "コンゴ共和国", capital: "ブラザヴィル", region: "AFRICA" }, { code: "cd", name: "コンゴ民主共和国", capital: "キンシャサ", region: "AFRICA" }, { code: "cr", name: "コスタリカ", capital: "サンホセ", region: "NORTH_AMERICA" }, { code: "ci", name: "コートジボワール", capital: "ヤムスクロ", region: "AFRICA" }, { code: "hr", name: "クロアチア", capital: "ザグレブ", region: "EUROPE" }, { code: "cu", name: "キューバ", capital: "ハバナ", region: "NORTH_AMERICA" }, { code: "cy", name: "キプロス", capital: "ニコシア", region: "ASIA" }, { code: "cz", name: "チェコ", capital: "プラハ", region: "EUROPE" }, { code: "dk", name: "デンマーク", capital: "コペンハーゲン", region: "EUROPE" }, { code: "dj", name: "ジブチ", capital: "ジブチ", region: "AFRICA" }, { code: "dm", name: "ドミニカ国", capital: "ロゾー", region: "NORTH_AMERICA" }, { code: "do", name: "ドミニカ共和国", capital: "サントドミンゴ", region: "NORTH_AMERICA" }, { code: "tl", name: "東ティモール", capital: "ディリ", region: "ASIA" }, { code: "ec", name: "エクアドル", capital: "キト", region: "SOUTH_AMERICA" }, { code: "eg", name: "エジプト", capital: "カイロ", region: "AFRICA" }, { code: "sv", name: "エルサルバドル", capital: "サンサルバドル", region: "NORTH_AMERICA" }, { code: "gq", name: "赤道ギニア", capital: "マラボ", region: "AFRICA" }, { code: "er", name: "エリトリア", capital: "アスマラ", region: "AFRICA" }, { code: "ee", name: "エストニア", capital: "タリン", region: "EUROPE" }, { code: "sz", name: "エスワティニ", capital: "ムババーネ", region: "AFRICA" }, { code: "et", name: "エチオピア", capital: "アディスアベバ", region: "AFRICA" }, { code: "fj", name: "フィジー", capital: "スバ", region: "OCEANIA" }, { code: "fi", name: "フィンランド", capital: "ヘルシンキ", region: "EUROPE" }, { code: "fr", name: "フランス", capital: "パリ", region: "EUROPE" }, { code: "ga", name: "ガボン", capital: "リーブルヴィル", region: "AFRICA" }, { code: "gm", name: "ガンビア", capital: "バンジュール", region: "AFRICA" }, { code: "ge", name: "ジョージア", capital: "トビリシ", region: "ASIA" }, { code: "de", name: "ドイツ", capital: "ベルリン", region: "EUROPE" }, { code: "gh", name: "ガーナ", capital: "アクラ", region: "AFRICA" }, { code: "gr", name: "ギリシャ", capital: "アテネ", region: "EUROPE" }, { code: "gd", name: "グレナダ", capital: "セントジョージズ", region: "NORTH_AMERICA" }, { code: "gt", name: "グアテマラ", capital: "グアテマラシティ", region: "NORTH_AMERICA" }, { code: "gn", name: "ギニア", capital: "コナクリ", region: "AFRICA" }, { code: "gw", name: "ギニアビサウ", capital: "ビサウ", region: "AFRICA" }, { code: "gy", name: "ガイアナ", capital: "ジョージタウン", region: "SOUTH_AMERICA" }, { code: "ht", name: "ハイチ", capital: "ポルトープランス", region: "NORTH_AMERICA" }, { code: "hn", name: "ホンジュラス", capital: "テグシガルパ", region: "NORTH_AMERICA" }, { code: "hu", name: "ハンガリー", capital: "ブダペスト", region: "EUROPE" }, { code: "is", name: "アイスランド", capital: "レイキャビク", region: "EUROPE" }, { code: "in", name: "インド", capital: "ニューデリー", region: "ASIA" }, { code: "id", name: "インドネシア", capital: "ジャカルタ", region: "ASIA" }, { code: "ir", name: "イラン", capital: "テヘラン", region: "ASIA" }, { code: "iq", name: "イラク", capital: "バグダッド", region: "ASIA" }, { code: "ie", name: "アイルランド", capital: "ダブリン", region: "EUROPE" }, { code: "il", name: "イスラエル", capital: "エルサレム", region: "ASIA" }, { code: "it", name: "イタリア", capital: "ローマ", region: "EUROPE" }, { code: "jm", name: "ジャマイカ", capital: "キングストン", region: "NORTH_AMERICA" }, { code: "jp", name: "日本", capital: "東京", region: "ASIA" }, { code: "jo", name: "ヨルダン", capital: "アンマン", region: "ASIA" }, { code: "kz", name: "カザフスタン", capital: "アスタナ", region: "ASIA" }, { code: "ke", name: "ケニア", capital: "ナイロビ", region: "AFRICA" }, { code: "ki", name: "キリバス", capital: "タラワ", region: "OCEANIA" }, { code: "kp", name: "北朝鮮", capital: "平壌", region: "ASIA" }, { code: "kr", name: "韓国", capital: "ソウル", region: "ASIA" }, { code: "xk", name: "コソボ", capital: "プリシュティナ", region: "EUROPE" }, { code: "kw", name: "クウェート", capital: "クウェートシティ", region: "ASIA" }, { code: "kg", name: "キルギス", capital: "ビシュケク", region: "ASIA" }, { code: "la", name: "ラオス", capital: "ビエンチャン", region: "ASIA" }, { code: "lv", name: "ラトビア", capital: "リガ", region: "EUROPE" }, { code: "lb", name: "レバノン", capital: "ベイルート", region: "ASIA" }, { code: "ls", name: "レソト", capital: "マセル", region: "AFRICA" }, { code: "lr", name: "リベリア", capital: "モンロビア", region: "AFRICA" }, { code: "ly", name: "リビア", capital: "トリポリ", region: "AFRICA" }, { code: "li", name: "リヒテンシュタイン", capital: "ファドゥーツ", region: "EUROPE" }, { code: "lt", name: "リトアニア", capital: "ビリニュス", region: "EUROPE" }, { code: "lu", name: "ルクセンブルク", capital: "ルクセンブルク", region: "EUROPE" }, { code: "mg", name: "マダガスカル", capital: "アンタナナリボ", region: "AFRICA" }, { code: "mw", name: "マラウイ", capital: "リロングウェ", region: "AFRICA" }, { code: "my", name: "マレーシア", capital: "クアラルンプール", region: "ASIA" }, { code: "mv", name: "モルディブ", capital: "マレ", region: "ASIA" }, { code: "ml", name: "マリ", capital: "バマコ", region: "AFRICA" }, { code: "mt", name: "マルタ", capital: "バレッタ", region: "EUROPE" }, { code: "mh", name: "マーシャル諸島", capital: "マジュロ", region: "OCEANIA" }, { code: "mr", name: "モーリタニア", capital: "ヌアクショット", region: "AFRICA" }, { code: "mu", name: "モーリシャス", capital: "ポートルイス", region: "AFRICA" }, { code: "mx", name: "メキシコ", capital: "メキシコシティ", region: "NORTH_AMERICA" }, { code: "fm", name: "ミクロネシア連邦", capital: "パリキール", region: "OCEANIA" }, { code: "md", name: "モルドバ", capital: "キシナウ", region: "EUROPE" }, { code: "mc", name: "モナコ", capital: "モナコ", region: "EUROPE" }, { code: "mn", name: "モンゴル", capital: "ウランバートル", region: "ASIA" }, { code: "me", name: "モンテネグロ", capital: "ポドゴリツァ", region: "EUROPE" }, { code: "ma", name: "モロッコ", capital: "ラバト", region: "AFRICA" }, { code: "mz", name: "モザンビーク", capital: "マプト", region: "AFRICA" }, { code: "mm", name: "ミャンマー", capital: "ネピドー", region: "ASIA" }, { code: "na", name: "ナミビア", capital: "ウィントフック", region: "AFRICA" }, { code: "nr", name: "ナウル", capital: "ヤレン", region: "OCEANIA" }, { code: "np", name: "ネパール", capital: "カトマンズ", region: "ASIA" }, { code: "nl", name: "オランダ", capital: "アムステルダム", region: "EUROPE" }, { code: "nz", name: "ニュージーランド", capital: "ウェリントン", region: "OCEANIA" }, { code: "ni", name: "ニカラグア", capital: "マナグア", region: "NORTH_AMERICA" }, { code: "ne", name: "ニジェール", capital: "ニアメ", region: "AFRICA" }, { code: "ng", name: "ナイジェリア", capital: "アブジャ", region: "AFRICA" }, { code: "mk", name: "北マケドニア", capital: "スコピエ", region: "EUROPE" }, { code: "no", name: "ノルウェー", capital: "オスロ", region: "EUROPE" }, { code: "om", name: "オマーン", capital: "マスカット", region: "ASIA" }, { code: "pk", name: "パキスタン", capital: "イスラマバード", region: "ASIA" }, { code: "pw", name: "パラオ", capital: "マルキョク", region: "OCEANIA" }, { code: "pa", name: "パナマ", capital: "パナマシティ", region: "NORTH_AMERICA" }, { code: "pg", name: "パプアニューギニア", capital: "ポートモレスビー", region: "OCEANIA" }, { code: "py", name: "パラグアイ", capital: "アスンシオン", region: "SOUTH_AMERICA" }, { code: "pe", name: "ペルー", capital: "リマ", region: "SOUTH_AMERICA" }, { code: "ph", name: "フィリピン", capital: "マニラ", region: "ASIA" }, { code: "pl", name: "ポーランド", capital: "ワルシャワ", region: "EUROPE" }, { code: "pt", name: "ポルトガル", capital: "リスボン", region: "EUROPE" }, { code: "qa", name: "カタール", capital: "ドーハ", region: "ASIA" }, { code: "ro", name: "ルーマニア", capital: "ブカレスト", region: "EUROPE" }, { code: "ru", name: "ロシア", capital: "モスクワ", region: "EUROPE" }, { code: "rw", name: "ルワンダ", capital: "キガリ", region: "AFRICA" }, { code: "kn", name: "セントクリストファー・ネイビス", capital: "バセテール", region: "NORTH_AMERICA" }, { code: "lc", name: "セントルシア", capital: "カストリーズ", region: "NORTH_AMERICA" }, { code: "vc", name: "セントビンセント・グレナディーン", capital: "キングスタウン", region: "NORTH_AMERICA" }, { code: "ws", name: "サモア", capital: "アピア", region: "OCEANIA" }, { code: "sm", name: "サンマリノ", capital: "サンマリノ", region: "EUROPE" }, { code: "st", name: "サントメ・プリンシペ", capital: "サントメ", region: "AFRICA" }, { code: "sa", name: "サウジアラビア", capital: "リヤド", region: "ASIA" }, { code: "sn", name: "セネガル", capital: "ダカール", region: "AFRICA" }, { code: "rs", name: "セルビア", capital: "ベオグラード", region: "EUROPE" }, { code: "sc", name: "セーシェル", capital: "ビクトリア", region: "AFRICA" }, { code: "sl", name: "シエラレオネ", capital: "フリータウン", region: "AFRICA" }, { code: "sg", name: "シンガポール", capital: "シンガポール", region: "ASIA" }, { code: "sk", name: "スロバキア", capital: "ブラチスラバ", region: "EUROPE" }, { code: "si", name: "スロベニア", capital: "リュブリャナ", region: "EUROPE" }, { code: "sb", name: "ソロモン諸島", capital: "ホニアラ", region: "OCEANIA" }, { code: "so", name: "ソマリア", capital: "モガディシュ", region: "AFRICA" }, { code: "za", name: "南アフリカ", capital: "プレトリア", region: "AFRICA" }, { code: "ss", name: "南スーダン", capital: "ジュバ", region: "AFRICA" }, { code: "es", name: "スペイン", capital: "マドリード", region: "EUROPE" }, { code: "lk", name: "スリランカ", capital: "スリジャヤワルダナプラコッテ", region: "ASIA" }, { code: "sd", name: "スーダン", capital: "ハルツーム", region: "AFRICA" }, { code: "sr", name: "スリナム", capital: "パラマリボ", region: "SOUTH_AMERICA" }, { code: "se", name: "スウェーデン", capital: "ストックホルム", region: "EUROPE" }, { code: "ch", name: "スイス", capital: "ベルン", region: "EUROPE" }, { code: "sy", name: "シリア", capital: "ダマスカス", region: "ASIA" }, { code: "tw", name: "台湾", capital: "台北", region: "ASIA" }, { code: "tj", name: "タジキスタン", capital: "ドゥシャンベ", region: "ASIA" }, { code: "tz", name: "タンザニア", capital: "ドドマ", region: "AFRICA" }, { code: "th", name: "タイ", capital: "バンコク", region: "ASIA" }, { code: "tg", name: "トーゴ", capital: "ロメ", region: "AFRICA" }, { code: "to", name: "トンガ", capital: "ヌクアロファ", region: "OCEANIA" }, { code: "tt", name: "トリニダード・トバゴ", capital: "ポートオブスペイン", region: "NORTH_AMERICA" }, { code: "tn", name: "チュニジア", capital: "チュニス", region: "AFRICA" }, { code: "tr", name: "トルコ", capital: "アンカラ", region: "ASIA" }, { code: "tm", name: "トルクメニスタン", capital: "アシガバート", region: "ASIA" }, { code: "tv", name: "ツバル", capital: "フナフティ", region: "OCEANIA" }, { code: "ug", name: "ウガンダ", capital: "カンパラ", region: "AFRICA" }, { code: "ua", name: "ウクライナ", capital: "キーウ", region: "EUROPE" }, { code: "ae", name: "アラブ首長国連邦", capital: "アブダビ", region: "ASIA" }, { code: "gb", name: "イギリス", capital: "ロンドン", region: "EUROPE" }, { code: "us", name: "アメリカ", capital: "ワシントンD.C.", region: "NORTH_AMERICA" }, { code: "uy", name: "ウルグアイ", capital: "モンテビデオ", region: "SOUTH_AMERICA" }, { code: "uz", name: "ウズベキスタン", capital: "タシュケント", region: "ASIA" }, { code: "vu", name: "バヌアツ", capital: "ポートビラ", region: "OCEANIA" }, { code: "va", name: "バチカン", capital: "バチカン", region: "EUROPE" }, { code: "ve", name: "ベネズエラ", capital: "カラカス", region: "SOUTH_AMERICA" }, { code: "vn", name: "ベトナム", capital: "ハノイ", region: "ASIA" }, { code: "ye", name: "イエメン", capital: "サナア", region: "ASIA" }, { code: "zm", name: "ザンビア", capital: "ルサカ", region: "AFRICA" }, { code: "zw", name: "ジンバブエ", capital: "ハラレ", region: "AFRICA" }
+      ];
+
+      // Pref to Region Map
+      const PREFECTURE_REGION_MAP = {
+        "北海道": "HOKKAIDO_TOHOKU", "青森県": "HOKKAIDO_TOHOKU", "岩手県": "HOKKAIDO_TOHOKU", "宮城県": "HOKKAIDO_TOHOKU", "秋田県": "HOKKAIDO_TOHOKU", "山形県": "HOKKAIDO_TOHOKU", "福島県": "HOKKAIDO_TOHOKU",
+        "茨城県": "KANTO", "栃木県": "KANTO", "群馬県": "KANTO", "埼玉県": "KANTO", "千葉県": "KANTO", "東京都": "KANTO", "神奈川県": "KANTO",
+        "新潟県": "CHUBU", "富山県": "CHUBU", "石川県": "CHUBU", "福井県": "CHUBU", "山梨県": "CHUBU", "長野県": "CHUBU", "岐阜県": "CHUBU", "静岡県": "CHUBU", "愛知県": "CHUBU",
+        "三重県": "KINKI", "滋賀県": "KINKI", "京都府": "KINKI", "大阪府": "KINKI", "兵庫県": "KINKI", "奈良県": "KINKI", "和歌山県": "KINKI",
+        "鳥取県": "CHUGOKU", "島根県": "CHUGOKU", "岡山県": "CHUGOKU", "広島県": "CHUGOKU", "山口県": "CHUGOKU",
+        "徳島県": "SHIKOKU", "香川県": "SHIKOKU", "愛媛県": "SHIKOKU", "高知県": "SHIKOKU",
+        "福岡県": "KYUSHU_OKINAWA", "佐賀県": "KYUSHU_OKINAWA", "長崎県": "KYUSHU_OKINAWA", "熊本県": "KYUSHU_OKINAWA", "大分県": "KYUSHU_OKINAWA", "宮崎県": "KYUSHU_OKINAWA", "鹿児島県": "KYUSHU_OKINAWA", "沖縄県": "KYUSHU_OKINAWA"
+      };
+
+      // --- 3. HELPER FUNCTIONS ---
+      
+      const shuffleArray = (array) => {
+        const newArray = [...array];
+        for (let i = newArray.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+        }
+        return newArray;
+      };
+
+      const getRandomOptions = (correct, allOptions, count) => {
+        const others = allOptions.filter(o => o !== correct);
+        const shuffledOthers = shuffleArray(others);
+        return shuffledOthers.slice(0, count);
+      };
+
+      // Storage Helper
+      const STORAGE_KEY = 'geoquiz_history';
+      const getHistory = () => {
+        try {
+          return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+        } catch {
+          return {};
+        }
+      };
+      
+      const updateHistory = (questionId, isCorrect) => {
+        const history = getHistory();
+        const current = history[questionId] || { correct: 0, attempts: 0 };
+        current.attempts += 1;
+        if (isCorrect) current.correct += 1;
+        history[questionId] = current;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+      };
+
+      const getAccuracy = (questionId) => {
+        const history = getHistory();
+        const current = history[questionId];
+        if (!current || current.attempts === 0) return 0;
+        return current.correct / current.attempts;
+      };
+
+      // Lazy parsing of Japan data
+      let PARSED_PREFECTURE_DATA = null;
+      const getPrefectureData = () => {
+        if (PARSED_PREFECTURE_DATA) return PARSED_PREFECTURE_DATA;
+        
+        const items = [];
+        const prefBlocks = RAW_JAPAN_DATA.split('|');
+        prefBlocks.forEach(block => {
+          if(!block) return;
+          const [pref, citiesStr] = block.split(':');
+          if (pref && citiesStr) {
+            const cities = citiesStr.split(',');
+            cities.forEach(city => {
+              if(city) items.push({ city: city.trim(), pref: pref.trim() });
+            });
+          }
+        });
+        PARSED_PREFECTURE_DATA = items;
+        return items;
+      };
+
+      const generateQuizItems = (gameType, region, sortOrder) => {
+        return new Promise((resolve) => {
+          let items = [];
+
+          switch (gameType) {
+            case GameType.CITY_TO_PREFECTURE: {
+              let source = getPrefectureData();
+              if (region !== 'ALL') {
+                source = source.filter(item => PREFECTURE_REGION_MAP[item.pref] === region);
+              }
+              const allPrefectures = Array.from(new Set(getPrefectureData().map(d => d.pref)));
+              items = source.map(item => ({
+                id: item.city, // identifier for history
+                question: item.city,
+                answer: item.pref,
+                options: getRandomOptions(item.pref, allPrefectures, 5)
+              }));
+              break;
+            }
+            case GameType.FLAG_TO_COUNTRY: {
+              let source = COUNTRY_DATA;
+              if (region !== 'ALL') {
+                source = source.filter(item => item.region === region);
+              }
+              const allCountries = COUNTRY_DATA.map(d => d.name);
+              items = source.map(item => ({
+                id: item.code, // identifier for history
+                question: "", 
+                isoCode: item.code,
+                answer: item.name,
+                options: getRandomOptions(item.name, allCountries, 5)
+              }));
+              break;
+            }
+            case GameType.COUNTRY_TO_CAPITAL: {
+              let source = COUNTRY_DATA;
+              if (region !== 'ALL') {
+                source = source.filter(item => item.region === region);
+              }
+              const allCapitals = COUNTRY_DATA.map(d => d.capital);
+              items = source.map(item => ({
+                id: item.name, // identifier for history
+                question: item.name,
+                answer: item.capital,
+                options: getRandomOptions(item.capital, allCapitals, 5)
+              }));
+              break;
+            }
+          }
+
+          // Apply Sorting
+          if (sortOrder === SortOrder.ACCURACY_ASC) {
+            items.sort((a, b) => {
+              const accA = getAccuracy(a.id);
+              const accB = getAccuracy(b.id);
+              // If accuracy is equal, use random tie breaker or keep stable
+              return accA - accB;
+            });
+          } else if (sortOrder === SortOrder.ALPHABETICAL) {
+            items.sort((a, b) => {
+               const textA = a.isoCode ? a.answer : a.question;
+               const textB = b.isoCode ? b.answer : b.question;
+               return textA.localeCompare(textB, 'ja');
+            });
+          } else {
+             // Random
+             items = shuffleArray(items);
+          }
+
+          resolve(items);
+        });
+      };
+
+      // --- 4. UI COMPONENTS ---
+
+      const Button = ({ children, variant = 'primary', size = 'md', className = '', ...props }) => {
+        const baseStyles = "font-bold rounded-xl transition-all duration-200 active:scale-95 flex items-center justify-center gap-2";
+        const variants = {
+          primary: "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200",
+          secondary: "bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 shadow-sm",
+          outline: "bg-transparent border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50",
+          danger: "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-200",
+        };
+        const sizes = {
+          sm: "px-3 py-1.5 text-sm",
+          md: "px-6 py-3 text-base",
+          lg: "px-8 py-4 text-lg",
+        };
+        return (
+          <button className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className} disabled:opacity-50 disabled:cursor-not-allowed`} {...props}>
+            {children}
+          </button>
+        );
+      };
+
+      // Icons
+      const Icons = {
+        Map: () => (
+          <div className="w-10 h-10 md:w-12 md:h-12 text-indigo-500 flex items-center justify-center">
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 md:w-10 md:h-10">
+                <path d="M11.644 1.59a.75.75 0 01.712 0l9.75 5.25a.75.75 0 010 1.32l-9.75 5.25a.75.75 0 01-.712 0l-9.75-5.25a.75.75 0 010-1.32l9.75-5.25z" />
+                <path d="M3.265 10.602l7.668 4.129a2.25 2.25 0 002.134 0l7.668-4.13 1.37.739a.75.75 0 010 1.32l-9.75 5.25a.75.75 0 01-.71 0l-9.75-5.25a.75.75 0 010-1.32l1.37-.738z" />
+                <path d="M10.933 19.231l-7.668-4.13-1.37.739a.75.75 0 000 1.32l9.75 5.25a.75.75 0 00.71 0l9.75-5.25a.75.75 0 000-1.32l-1.37-.738-7.668 4.13a2.25 2.25 0 01-2.134 0z" />
+            </svg>
+          </div>
+        ),
+        Flag: () => (
+          <div className="w-10 h-10 md:w-12 md:h-12 text-pink-500 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 md:w-10 md:h-10">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+              <line x1="4" y1="22" x2="4" y2="15" />
+            </svg>
+          </div>
+        ),
+        Building: () => (
+          <div className="w-10 h-10 md:w-12 md:h-12 text-emerald-500 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 md:w-10 md:h-10">
+              <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+              <line x1="9" y1="22" x2="9" y2="22.01" />
+              <line x1="15" y1="22" x2="15" y2="22.01" />
+              <line x1="9" y1="18" x2="9" y2="18.01" />
+              <line x1="15" y1="18" x2="15" y2="18.01" />
+              <line x1="9" y1="14" x2="9" y2="14.01" />
+              <line x1="15" y1="14" x2="15" y2="14.01" />
+              <line x1="9" y1="10" x2="9" y2="10.01" />
+              <line x1="15" y1="10" x2="15" y2="10.01" />
+              <line x1="9" y1="6" x2="9" y2="6.01" />
+              <line x1="15" y1="6" x2="15" y2="6.01" />
+            </svg>
+          </div>
+        ),
+        Settings: () => (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+        )
+      };
+
+      // Settings Modal
+      const SettingsModal = ({ settings, onUpdate, onClose }) => {
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-fade-in max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold mb-6 text-gray-800">設定</h2>
+              
+              {/* Input Mode */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-600 mb-2">回答方式</label>
+                <div className="flex flex-col gap-2">
+                  <button onClick={() => onUpdate({ ...settings, inputMode: InputMode.CHOICE })} className={`py-3 px-4 rounded-lg border-2 font-medium text-left flex items-center justify-between ${settings.inputMode === InputMode.CHOICE ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                    <span>選択式 (6択)</span>{settings.inputMode === InputMode.CHOICE && <span>✓</span>}
+                  </button>
+                  <button onClick={() => onUpdate({ ...settings, inputMode: InputMode.TEXT })} className={`py-3 px-4 rounded-lg border-2 font-medium text-left flex items-center justify-between ${settings.inputMode === InputMode.TEXT ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                    <span>入力式 (キーボード)</span>{settings.inputMode === InputMode.TEXT && <span>✓</span>}
+                  </button>
+                  <button onClick={() => onUpdate({ ...settings, inputMode: InputMode.FLASH })} className={`py-3 px-4 rounded-lg border-2 font-medium text-left flex items-center justify-between ${settings.inputMode === InputMode.FLASH ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                    <span>フラッシュモード (自動)</span>{settings.inputMode === InputMode.FLASH && <span>✓</span>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Sort Order */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-600 mb-2">出題順</label>
+                <div className="flex flex-col gap-2">
+                  <button onClick={() => onUpdate({ ...settings, sortOrder: SortOrder.RANDOM })} className={`py-2 px-3 rounded-lg border font-medium text-sm text-left flex items-center justify-between ${settings.sortOrder === SortOrder.RANDOM ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                    <span>ランダム</span>{settings.sortOrder === SortOrder.RANDOM && <span>✓</span>}
+                  </button>
+                  <button onClick={() => onUpdate({ ...settings, sortOrder: SortOrder.ACCURACY_ASC })} className={`py-2 px-3 rounded-lg border font-medium text-sm text-left flex items-center justify-between ${settings.sortOrder === SortOrder.ACCURACY_ASC ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                    <span>正解率が低い順</span>{settings.sortOrder === SortOrder.ACCURACY_ASC && <span>✓</span>}
+                  </button>
+                   <button onClick={() => onUpdate({ ...settings, sortOrder: SortOrder.ALPHABETICAL })} className={`py-2 px-3 rounded-lg border font-medium text-sm text-left flex items-center justify-between ${settings.sortOrder === SortOrder.ALPHABETICAL ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500'}`}>
+                    <span>あいうえお順</span>{settings.sortOrder === SortOrder.ALPHABETICAL && <span>✓</span>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Flash Speed (Only show if Flash mode is active or always show for config) */}
+              <div className="mb-6">
+                 <label className="block text-sm font-semibold text-gray-600 mb-2">再生速度 (フラッシュモード用)</label>
+                 <div className="flex items-center gap-4">
+                    <input 
+                      type="range" 
+                      min="1000" 
+                      max="5000" 
+                      step="500" 
+                      value={settings.flashSpeed} 
+                      onChange={(e) => onUpdate({ ...settings, flashSpeed: Number(e.target.value) })}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                    <span className="font-mono text-gray-700 w-12 text-right">{(settings.flashSpeed / 1000).toFixed(1)}s</span>
+                 </div>
+              </div>
+
+              <Button onClick={onClose} className="w-full">閉じる</Button>
+            </div>
+          </div>
+        );
+      };
+
+      // Region Select
+      const RegionSelect = ({ gameType, onSelectRegion, onBack }) => {
+        const isJapan = gameType === GameType.CITY_TO_PREFECTURE;
+        const japanRegions = [
+          { id: 'ALL', label: '全国 (すべて)', color: 'bg-indigo-100 border-indigo-300 text-indigo-800' },
+          { id: 'HOKKAIDO_TOHOKU', label: '北海道・東北', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+          { id: 'KANTO', label: '関東', color: 'bg-green-50 border-green-200 text-green-700' },
+          { id: 'CHUBU', label: '中部', color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
+          { id: 'KINKI', label: '近畿', color: 'bg-purple-50 border-purple-200 text-purple-700' },
+          { id: 'CHUGOKU', label: '中国', color: 'bg-red-50 border-red-200 text-red-700' },
+          { id: 'SHIKOKU', label: '四国', color: 'bg-orange-50 border-orange-200 text-orange-700' },
+          { id: 'KYUSHU_OKINAWA', label: '九州・沖縄', color: 'bg-teal-50 border-teal-200 text-teal-700' },
+        ];
+        const worldRegions = [
+          { id: 'ALL', label: '全世界 (すべて)', color: 'bg-indigo-100 border-indigo-300 text-indigo-800' },
+          { id: 'ASIA', label: 'アジア', color: 'bg-red-50 border-red-200 text-red-700' },
+          { id: 'EUROPE', label: 'ヨーロッパ', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+          { id: 'AFRICA', label: 'アフリカ', color: 'bg-yellow-50 border-yellow-200 text-yellow-700' },
+          { id: 'NORTH_AMERICA', label: '北アメリカ', color: 'bg-green-50 border-green-200 text-green-700' },
+          { id: 'SOUTH_AMERICA', label: '南アメリカ', color: 'bg-orange-50 border-orange-200 text-orange-700' },
+          { id: 'OCEANIA', label: 'オセアニア', color: 'bg-teal-50 border-teal-200 text-teal-700' },
+        ];
+        const regions = isJapan ? japanRegions : worldRegions;
+
+        return (
+          <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in h-full flex flex-col justify-center">
+            <div className="glass rounded-3xl p-6 md:p-8 shadow-2xl max-h-full overflow-y-auto">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2 text-center">地域を選択</h2>
+              <p className="text-gray-500 text-center mb-6">出題する地域を選んでください</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                {regions.map((region) => (
+                  <button
+                    key={region.id}
+                    onClick={() => onSelectRegion(region.id)}
+                    className={`p-3 md:p-4 rounded-xl border-2 font-bold text-base md:text-lg transition-all hover:scale-[1.02] hover:shadow-md ${region.color}`}
+                  >
+                    {region.label}
+                  </button>
+                ))}
+              </div>
+              <Button variant="secondary" onClick={onBack} className="w-full">戻る</Button>
+            </div>
+          </div>
+        );
+      };
+
+      // Quiz Game
+      const QuizGame = ({ gameType, settings, region, onEndGame, onExit }) => {
+        const [items, setItems] = useState([]);
+        const [currentIndex, setCurrentIndex] = useState(0);
+        const [loading, setLoading] = useState(true);
+        const [results, setResults] = useState([]);
+        const [userInput, setUserInput] = useState('');
+        const [feedbackState, setFeedbackState] = useState('idle');
+        const [shuffledOptions, setShuffledOptions] = useState([]);
+        const inputRef = useRef(null);
+        const flashTimerRef = useRef(null);
+        const isFlashMode = settings.inputMode === InputMode.FLASH;
+
+        useEffect(() => {
+          const fetchItems = async () => {
+            try {
+              const data = await generateQuizItems(gameType, region, settings.sortOrder);
+              setItems(data);
+              setLoading(false);
+            } catch (error) {
+              console.error("Failed to load quiz", error);
+              onExit();
+            }
+          };
+          fetchItems();
+          return () => {
+            if (flashTimerRef.current) clearInterval(flashTimerRef.current);
+          };
+        }, []);
+
+        useEffect(() => {
+          if (items.length > 0 && currentIndex < items.length) {
+            const currentItem = items[currentIndex];
+            
+            // Standard Mode Setup
+            if (!isFlashMode) {
+                const allOptions = [currentItem.answer, ...currentItem.options].slice(0, 6);
+                setShuffledOptions(allOptions.sort(() => Math.random() - 0.5));
+                setUserInput('');
+                setFeedbackState('idle');
+                if (settings.inputMode === InputMode.TEXT) {
+                  setTimeout(() => inputRef.current?.focus(), 100);
+                }
+            } else {
+                // Flash Mode Setup
+                if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+                flashTimerRef.current = setTimeout(() => {
+                    handleFlashNext();
+                }, settings.flashSpeed);
+            }
+          } else if (items.length > 0 && currentIndex >= items.length) {
+              onEndGame(results);
+          }
+        }, [items, currentIndex, settings.inputMode]);
+
+        // Clean up timer on unmount
+        useEffect(() => {
+           return () => { if(flashTimerRef.current) clearTimeout(flashTimerRef.current); }
+        }, []);
+
+        const handleFlashNext = () => {
+             // In flash mode, we just move next. No scoring recorded for simplicity in "Flash" mode (study mode).
+             // Or we could record as 'seen'. For now, let's just advance.
+             if (currentIndex + 1 >= items.length) {
+                 onEndGame(results);
+             } else {
+                 setCurrentIndex(prev => prev + 1);
+             }
+        };
+
+        const handleAnswer = (answer) => {
+          if (feedbackState !== 'idle' || isFlashMode) return;
+          const currentItem = items[currentIndex];
+          const normalizedUser = answer.trim().replace(/[都道府県]/g, '');
+          const normalizedCorrect = currentItem.answer.trim().replace(/[都道府県]/g, '');
+          const isCorrect = normalizedUser === normalizedCorrect || answer.trim() === currentItem.answer.trim();
+
+          setFeedbackState(isCorrect ? 'correct' : 'incorrect');
+          setUserInput(answer);
+
+          // Update History for accuracy tracking
+          updateHistory(currentItem.id, isCorrect);
+
+          const result = { item: currentItem, userAnswer: answer, isCorrect };
+          const newResults = [...results, result];
+          setResults(newResults);
+
+          setTimeout(() => {
+            if (currentIndex + 1 >= items.length) {
+              onEndGame(newResults);
+            } else {
+              setCurrentIndex(prev => prev + 1);
+            }
+          }, 600);
+        };
+
+        const handleSubmitText = (e) => {
+          e.preventDefault();
+          if (!userInput.trim()) return;
+          handleAnswer(userInput);
+        };
+
+        if (loading) return (
+          <div className="flex flex-col items-center justify-center h-full space-y-4">
+            <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            <p className="text-gray-500 font-medium">問題を読み込み中...</p>
+          </div>
+        );
+
+        if (items.length === 0) return (
+          <div className="flex flex-col items-center justify-center h-full space-y-4">
+            <p className="text-gray-600 font-bold text-xl">この地域のデータがありません。</p>
+            <Button onClick={onExit}>戻る</Button>
+          </div>
+        );
+
+        const currentItem = items[currentIndex];
+        
+        // Render Flash Mode
+        if (isFlashMode) {
+             return (
+                <div className="w-full h-full flex flex-col p-4 animate-fade-in">
+                    <div className="flex justify-between items-center mb-4">
+                         <Button variant="secondary" size="sm" onClick={onExit}>終了</Button>
+                         <span className="text-gray-500 font-mono font-bold">{currentIndex + 1} / {items.length}</span>
+                    </div>
+                    <div className="flex-1 glass rounded-3xl flex flex-col items-center justify-center text-center p-8 shadow-xl relative overflow-hidden">
+                         <div className="absolute top-0 left-0 w-full h-1 bg-gray-200">
+                            <div className="h-full bg-indigo-500 transition-all ease-linear" style={{ width: '100%', transitionDuration: `${settings.flashSpeed}ms`, transform: 'translateX(-100%)', animation: `progress ${settings.flashSpeed}ms linear` }}></div>
+                         </div>
+                         <style>{`@keyframes progress { from { transform: translateX(0); } to { transform: translateX(-100%); } }`}</style>
+                         
+                         <h3 className="text-gray-400 font-bold uppercase tracking-wider text-sm mb-4">Question</h3>
+                         {gameType === GameType.FLAG_TO_COUNTRY && currentItem.isoCode ? (
+                            <img src={`https://flagcdn.com/w640/${currentItem.isoCode}.png`} alt="Flag" className="h-48 object-contain mb-8 shadow-md" />
+                         ) : (
+                            <h1 className="text-4xl md:text-6xl font-black text-indigo-900 mb-8">{currentItem.question}</h1>
+                         )}
+                         
+                         <div className="w-16 h-1 bg-gray-300 rounded-full mb-8"></div>
+                         
+                         <h3 className="text-gray-400 font-bold uppercase tracking-wider text-sm mb-2">Answer</h3>
+                         <h2 className="text-3xl md:text-5xl font-bold text-red-600 animate-[fadeIn_0.5s_ease-out]">{currentItem.answer}</h2>
+                    </div>
+                </div>
+             );
+        }
+
+        // Render Standard Mode
+        const totalAnswered = results.length;
+        const correctCount = results.filter(r => r.isCorrect).length;
+        const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0;
+
+        return (
+          <div className="w-full max-w-2xl mx-auto p-4 flex flex-col h-full justify-center">
+            <div className="mb-4 flex items-center justify-between bg-white/50 p-4 rounded-xl backdrop-blur-sm shadow-sm">
+              <Button variant="danger" size="sm" onClick={() => onEndGame(results)}>終了</Button>
+              <div className="flex flex-col items-end">
+                <span className="text-xl font-black text-indigo-900 font-mono">
+                  {currentIndex + 1} <span className="text-sm text-gray-500 font-bold">/ {items.length}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-xl overflow-hidden relative flex-1 flex flex-col min-h-0">
+              {feedbackState !== 'idle' && (
+                <div className={`absolute inset-0 z-20 flex flex-col items-center justify-center bg-opacity-95 backdrop-blur-sm ${feedbackState === 'correct' ? 'bg-green-50/90' : 'bg-red-50/90'}`}>
+                  <div className={`text-6xl mb-4 ${feedbackState === 'correct' ? 'scale-125' : 'translate-x-1'}`}>
+                    {feedbackState === 'correct' ? '⭕' : '❌'}
+                  </div>
+                  <div className="text-center p-4">
+                    <p className="text-2xl font-bold text-gray-800">{currentItem.answer}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="p-4 md:p-8 flex-1 flex flex-col items-center justify-center text-center overflow-y-auto">
+                <h3 className="text-gray-400 font-bold uppercase tracking-wider text-xs">Question</h3>
+                {gameType === GameType.FLAG_TO_COUNTRY && currentItem.isoCode ? (
+                  <div className="my-4 shadow-md rounded-lg overflow-hidden border border-gray-100 shrink-0">
+                    <img src={`https://flagcdn.com/w640/${currentItem.isoCode}.png`} alt="Flag" className="h-32 md:h-48 object-cover" />
+                  </div>
+                ) : (
+                  <h1 className="text-3xl md:text-5xl font-extrabold text-indigo-950 leading-tight my-4">
+                    {currentItem.question}
+                  </h1>
+                )}
+                <div className="mt-2">
+                   <div className="inline-block px-4 py-1 rounded-full bg-gray-100 text-sm font-bold text-gray-600">
+                     正解率: {totalAnswered > 0 ? `${accuracy}%` : '-'}
+                   </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 md:p-6 border-t border-gray-100 shrink-0">
+                {settings.inputMode === InputMode.CHOICE ? (
+                  <div className="grid grid-cols-2 gap-2 md:gap-3">
+                    {shuffledOptions.map((option, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleAnswer(option)}
+                        disabled={feedbackState !== 'idle'}
+                        className="bg-white hover:bg-indigo-50 active:bg-indigo-100 text-indigo-900 font-bold py-3 md:py-4 px-2 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all text-sm md:text-base disabled:opacity-50"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmitText} className="flex gap-2">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={userInput}
+                      onChange={(e) => setUserInput(e.target.value)}
+                      disabled={feedbackState !== 'idle'}
+                      placeholder="回答を入力..."
+                      className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-lg transition-all"
+                    />
+                    <Button type="submit" disabled={!userInput.trim() || feedbackState !== 'idle'}>回答</Button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // App Component
+      const App = () => {
+        const [gameState, setGameState] = useState(GameState.MENU);
+        const [gameType, setGameType] = useState(GameType.CITY_TO_PREFECTURE);
+        const [selectedRegion, setSelectedRegion] = useState('ALL');
+        const [settings, setSettings] = useState({ 
+          inputMode: InputMode.CHOICE,
+          sortOrder: SortOrder.RANDOM,
+          flashSpeed: 2000
+        });
+        const [showSettings, setShowSettings] = useState(false);
+        const [lastResults, setLastResults] = useState([]);
+
+        const handleSelectGame = (type) => {
+          setGameType(type);
+          setGameState(GameState.REGION_SELECT);
+        };
+        const handleRegionSelected = (region) => {
+          setSelectedRegion(region);
+          setGameState(GameState.PLAYING);
+        };
+        const handleEndGame = (results) => {
+          setLastResults(results);
+          setGameState(GameState.RESULT);
+        };
+
+        const renderMenu = () => (
+          <div className="h-full w-full max-w-4xl mx-auto px-4 py-6 md:py-12 animate-fade-in flex flex-col">
+            <div className="flex justify-between items-center mb-6 shrink-0">
+              <div className="w-10"></div>
+              <h1 className="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 tracking-tight drop-shadow-sm text-center">GeoQuiz AI</h1>
+              <button onClick={() => setShowSettings(true)} className="p-2 bg-white rounded-full shadow-md hover:shadow-lg text-gray-600 transition-all"><Icons.Settings /></button>
+            </div>
+            
+            <div className="flex-1 flex flex-col md:grid md:grid-cols-3 gap-4 mb-6 min-h-0">
+              <button onClick={() => handleSelectGame(GameType.CITY_TO_PREFECTURE)} className="flex-1 glass rounded-3xl p-4 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-row md:flex-col items-center justify-center md:justify-center text-center group border border-white/50 gap-4">
+                <div className="bg-indigo-50 p-4 rounded-full group-hover:scale-110 transition-transform"><Icons.Map /></div>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">市町村 → 都道府県</h2>
+              </button>
+              <button onClick={() => handleSelectGame(GameType.FLAG_TO_COUNTRY)} className="flex-1 glass rounded-3xl p-4 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-row md:flex-col items-center justify-center md:justify-center text-center group border border-white/50 gap-4">
+                <div className="bg-pink-50 p-4 rounded-full group-hover:scale-110 transition-transform"><Icons.Flag /></div>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">国旗 → 国名</h2>
+              </button>
+              <button onClick={() => handleSelectGame(GameType.COUNTRY_TO_CAPITAL)} className="flex-1 glass rounded-3xl p-4 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 flex flex-row md:flex-col items-center justify-center md:justify-center text-center group border border-white/50 gap-4">
+                <div className="bg-emerald-50 p-4 rounded-full group-hover:scale-110 transition-transform"><Icons.Building /></div>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">国名 → 首都</h2>
+              </button>
+            </div>
+            
+            <div className="shrink-0 text-center text-xs md:text-sm text-gray-500 font-medium bg-white/40 p-2 rounded-full mx-auto px-6">
+               モード: {settings.inputMode === InputMode.CHOICE ? '選択式 (6択)' : settings.inputMode === InputMode.TEXT ? '入力式' : 'フラッシュ'} | 
+               出題順: {settings.sortOrder === SortOrder.RANDOM ? 'ランダム' : settings.sortOrder === SortOrder.ACCURACY_ASC ? '正解率低' : 'あいうえお'}
+            </div>
+          </div>
+        );
+
+        const renderResult = () => {
+          const correctCount = lastResults.filter(r => r.isCorrect).length;
+          const incorrectResults = lastResults.filter(r => !r.isCorrect);
+          const isFlash = settings.inputMode === InputMode.FLASH;
+
+          return (
+            <div className="max-w-2xl mx-auto px-4 py-8 animate-fade-in h-full flex flex-col justify-center">
+              <div className="glass rounded-3xl p-6 shadow-2xl text-center max-h-full flex flex-col">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2 shrink-0">結果発表</h2>
+                
+                {!isFlash && (
+                    <div className="my-4 shrink-0">
+                    <div className="text-5xl font-black text-indigo-600 mb-2 flex items-center justify-center">
+                        {correctCount}<span className="text-2xl text-gray-400 mx-2">/</span><span className="text-3xl text-gray-500">{lastResults.length}</span>
+                    </div>
+                    <p className="text-gray-500 font-medium">正解数</p>
+                    </div>
+                )}
+                
+                {isFlash ? (
+                     <div className="my-8 text-center text-gray-600">
+                        <p className="mb-4 text-lg">フラッシュ暗記モード終了！</p>
+                        <p className="text-sm">何度も繰り返して覚えましょう。</p>
+                     </div>
+                ) : (
+                    <div className="mb-6 flex-1 overflow-y-auto min-h-0">
+                    <h3 className="text-left font-bold text-gray-700 mb-3 border-b pb-2 sticky top-0 bg-white/90 backdrop-blur-sm">間違えた問題 ({incorrectResults.length})</h3>
+                    <div className="space-y-3 text-left pr-2 custom-scrollbar">
+                        {incorrectResults.length === 0 ? (
+                            <p className="text-center text-green-600 font-bold py-4">全問正解！素晴らしい！🎉</p>
+                        ) : (
+                            incorrectResults.map((result, idx) => (
+                            <div key={idx} className="p-3 rounded-xl bg-red-50 border border-red-100 flex items-center justify-between">
+                                <div>
+                                <div className="font-bold text-gray-800 text-sm">{result.item.question || '国旗'}</div>
+                                <div className="text-xs text-red-500 mt-1">あなたの回答: {result.userAnswer}</div>
+                                </div>
+                                <div className="text-right pl-4">
+                                <span className="text-[10px] text-gray-500 block">正解は</span>
+                                <span className="text-green-600 font-bold text-sm">{result.item.answer}</span>
+                                </div>
+                            </div>
+                            ))
+                        )}
+                    </div>
+                    </div>
+                )}
+                
+                <div className="flex gap-4 justify-center shrink-0">
+                  <Button variant="secondary" onClick={() => setGameState(GameState.MENU)}>メニューに戻る</Button>
+                  <Button onClick={() => handleSelectGame(gameType)}>もう一度遊ぶ</Button>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <div className="h-full w-full">
+            {showSettings && <SettingsModal settings={settings} onUpdate={setSettings} onClose={() => setShowSettings(false)} />}
+            {gameState === GameState.MENU && renderMenu()}
+            {gameState === GameState.REGION_SELECT && <RegionSelect gameType={gameType} onSelectRegion={handleRegionSelected} onBack={() => setGameState(GameState.MENU)} />}
+            {gameState === GameState.PLAYING && <QuizGame gameType={gameType} settings={settings} region={selectedRegion} onEndGame={handleEndGame} onExit={() => handleEndGame(lastResults)} />}
+            {gameState === GameState.RESULT && renderResult()}
+          </div>
+        );
+      };
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

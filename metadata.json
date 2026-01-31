@@ -1,0 +1,5 @@
+{
+  "name": "GeoQuiz AI",
+  "description": "A smart geography quiz app powered by Gemini. Guess Japanese prefectures, world flags, and capitals.",
+  "requestFramePermissions": []
+}
